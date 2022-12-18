@@ -1,23 +1,27 @@
 const std = @import("std");
 
-pub fn linkTo(exe: *std.build.LibExeObjStep, pkg_name: []const u8) void {
+pub fn linkTo(exe: *std.build.LibExeObjStep) !void {
     const sodium = exe.builder.addStaticLibrary("sodium", src() ++ "/src/sodium.zig");
     sodium.setTarget(exe.target);
     sodium.setBuildMode(exe.build_mode);
-    if (exe.target.os_tag) |os| {
-        if (os == .windows) {
-            sodium.linkSystemLibrary("advapi32");
-        }
+
+    const target_info = try std.zig.system.NativeTargetInfo.detect(exe.target);
+    if (target_info.target.os.tag == .windows) {
+        sodium.linkSystemLibrary("advapi32");
+        exe.linkSystemLibrary("ws2_32");
     }
 
     exe.linkLibrary(sodium);
     exe.linkLibC();
-    exe.addCSourceFile(src() ++ "/lib/netcode/netcode.c", &.{});
+    exe.addCSourceFile(src() ++ "/lib/netcode/netcode.c", &.{"-U__MINGW32__"});
     exe.addIncludePath(src() ++ "/src");
-    exe.addPackage(.{
-        .name = pkg_name,
+}
+
+pub fn package(name: []const u8) std.build.Pkg {
+    return .{
+        .name = name,
         .source = .{ .path = src() ++ "/src/main.zig" },
-    });
+    };
 }
 
 inline fn src() []const u8 {
