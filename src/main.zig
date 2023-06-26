@@ -28,7 +28,7 @@ pub const ClientState = enum(i16) {
     connected = 3,
 
     pub fn isErrored(state: ClientState) bool {
-        return @enumToInt(state) < 0;
+        return @intFromEnum(state) < 0;
     }
 };
 
@@ -297,7 +297,7 @@ pub const Client = opaque {
     }
 
     pub fn state(client: *Client) ClientState {
-        return @intToEnum(ClientState, netcode_client_state(client));
+        return @enumFromInt(ClientState, netcode_client_state(client));
     }
 
     pub fn index(client: *Client) !usize {
