@@ -327,7 +327,7 @@ pub const Client = opaque {
     }
 
     pub fn processLoopbackPacket(client: *Client, packet_data: []u8, packet_sequence: u64) void {
-        netcode_client_process_packet(client, packet_data.ptr, @intCast(c_int, packet_data.len), packet_sequence);
+        netcode_client_process_loopback_packet(client, packet_data.ptr, @intCast(c_int, packet_data.len), packet_sequence);
     }
 
     pub fn getPort(client: *Client) u16 {
@@ -451,8 +451,8 @@ pub const Server = opaque {
         netcode_server_process_packet(server, &from.toNative(), packet_data.ptr, @intCast(c_int, packet_data.len));
     }
 
-    pub fn connectLoopbackClient(server: *Server, client_index: usize, client_id: u64, user_data: []u8) void {
-        netcode_server_connect_loopback_client(server, @intCast(c_int, client_index), client_id, user_data.ptr);
+    pub fn connectLoopbackClient(server: *Server, client_index: usize, client_id: u64, user_data: *[USER_DATA_BYTES]u8) void {
+        netcode_server_connect_loopback_client(server, @intCast(c_int, client_index), client_id, user_data);
     }
 
     pub fn disconnectLoopbackClient(server: *Server, client_index: usize) void {
@@ -464,7 +464,7 @@ pub const Server = opaque {
     }
 
     pub fn processLoopbackPacket(server: *Server, client_index: usize, packet_data: []u8, packet_sequence: u64) void {
-        netcode_server_process_packet(server, @intCast(c_int, client_index), packet_data.ptr, @intCast(c_int, packet_data.len), packet_sequence);
+        netcode_server_process_loopback_packet(server, @intCast(c_int, client_index), packet_data.ptr, @intCast(c_int, packet_data.len), packet_sequence);
     }
 
     pub fn getPort(server: *Server) u16 {
