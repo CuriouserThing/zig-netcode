@@ -136,7 +136,7 @@ pub const Address = struct {
     }
 
     fn toNative(address: Address) struct_netcode_address_t {
-        return switch (AddressData) {
+        return switch (address.data) {
             .ipv4 => |ip| .{
                 .data = .{ .ipv4 = ip },
                 .port = address.port,
@@ -154,18 +154,21 @@ pub const Address = struct {
 pub fn parseAddress(address_string_in: [*:0]u8) ?Address {
     var address: struct_netcode_address_t = undefined;
     if (netcode_parse_address(address_string_in, &address) == OK) {
-        return Address.fromNative(address);
+        return Address.fromNative(address) catch null;
     } else {
         return null;
     }
 }
 
-pub fn addressToString(address: [*:0]u8, buffer: []u8) []const u8 {
-    return netcode_address_to_string(address, buffer.ptr);
+pub fn addressToString(address: Address, buffer: []u8) []const u8 {
+    var native = address.toNative();
+    return std.mem.sliceTo(netcode_address_to_string(&native, buffer.ptr), 0);
 }
 
 pub fn addressEqual(a: Address, b: Address) bool {
-    return netcode_address_equal(Address.toNative(a), Address.toNative(b)) != 0;
+    var an = a.toNative();
+    var bn = b.toNative();
+    return netcode_address_equal(&an, &bn) != 0;
 }
 
 pub const ClientConfig = struct_netcode_client_config_t;
@@ -189,7 +192,7 @@ pub fn generateConnectToken(
     connect_token: *[CONNECT_TOKEN_BYTES]u8,
 ) !void {
     if (public_server_addresses.len != internal_server_addresses.len) return Error.LibraryError;
-    const len = @intCast(c_int, public_server_addresses.len);
+    const len = @as(c_int, @intCast(public_server_addresses.len));
     const code = netcode_generate_connect_token(len, public_server_addresses.ptr, internal_server_addresses.ptr, expire_seconds, timeout_seconds, client_id, protocol_id, private_key, user_data, connect_token);
     if (code != OK) return Error.LibraryError;
 }
@@ -224,7 +227,7 @@ pub fn setAssertFunction(function: ?*const fn ([*c]u8, [*c]u8, [*c]u8, c_int) ca
 }
 
 pub fn randomBytes(data: []u8) void {
-    netcode_random_bytes(data.ptr, @intCast(c_int, data.len));
+    netcode_random_bytes(data.ptr, @as(c_int, @intCast(data.len)));
 }
 
 pub fn sleep(seconds: f64) void {
@@ -278,14 +281,14 @@ pub const Client = opaque {
     }
 
     pub fn sendPacket(client: *Client, packet_data: []u8) void {
-        netcode_client_send_packet(client, packet_data.ptr, @intCast(c_int, packet_data.len));
+        netcode_client_send_packet(client, packet_data.ptr, @as(c_int, @intCast(packet_data.len)));
     }
 
     pub fn receivePacket(client: *Client, packet_sequence: *u64) !?[]u8 {
         var len: c_int = 0;
         var packet = netcode_client_receive_packet(client, &len, packet_sequence);
         if (len < 0) return Error.NegativeIndex;
-        return if (packet == null) null else packet[0..@intCast(usize, len)];
+        return if (packet == null) null else packet[0..@as(usize, @intCast(len))];
     }
 
     pub fn freePacket(client: *Client, packet: []u8) void {
@@ -297,21 +300,21 @@ pub const Client = opaque {
     }
 
     pub fn state(client: *Client) ClientState {
-        return @enumFromInt(ClientState, netcode_client_state(client));
+        return @as(ClientState, @enumFromInt(netcode_client_state(client)));
     }
 
     pub fn index(client: *Client) !usize {
         const idx = netcode_client_index(client);
-        return if (idx < 0) Error.NegativeIndex else @intCast(usize, idx);
+        return if (idx < 0) Error.NegativeIndex else @as(usize, @intCast(idx));
     }
 
-    pub fn maxClients(client: *Client) usize {
+    pub fn maxClients(client: *Client) !usize {
         const max = netcode_client_max_clients(client);
-        return if (max < 0) Error.NegativeIndex else return max;
+        return if (max < 0) Error.NegativeIndex else return @as(usize, @intCast(max));
     }
 
     pub fn connectLoopback(client: *Client, client_index: usize, max_clients: usize) void {
-        netcode_client_connect_loopback(client, @intCast(c_int, client_index), @intCast(c_int, max_clients));
+        netcode_client_connect_loopback(client, @as(c_int, @intCast(client_index)), @as(c_int, @intCast(max_clients)));
     }
 
     pub fn disconnectLoopback(client: *Client) void {
@@ -319,7 +322,8 @@ pub const Client = opaque {
     }
 
     pub fn processPacket(client: *Client, from: Address, packet_data: []u8) void {
-        netcode_client_process_packet(client, &from.toNative(), packet_data.ptr, @intCast(c_int, packet_data.len));
+        var from_native = from.toNative();
+        netcode_client_process_packet(client, &from_native, packet_data.ptr, @as(c_int, @intCast(packet_data.len)));
     }
 
     pub fn loopback(client: *Client) bool {
@@ -327,7 +331,7 @@ pub const Client = opaque {
     }
 
     pub fn processLoopbackPacket(client: *Client, packet_data: []u8, packet_sequence: u64) void {
-        netcode_client_process_loopback_packet(client, packet_data.ptr, @intCast(c_int, packet_data.len), packet_sequence);
+        netcode_client_process_loopback_packet(client, packet_data.ptr, @as(c_int, @intCast(packet_data.len)), packet_sequence);
     }
 
     pub fn getPort(client: *Client) u16 {
@@ -379,7 +383,7 @@ pub const Server = opaque {
     }
 
     pub fn start(server: *Server, max_clients: usize) void {
-        netcode_server_start(server, @intCast(c_int, max_clients));
+        netcode_server_start(server, @as(c_int, @intCast(max_clients)));
     }
 
     pub fn stop(server: *Server) void {
@@ -392,7 +396,7 @@ pub const Server = opaque {
 
     pub fn maxClients(server: *Server) !usize {
         const max = netcode_server_max_clients(server);
-        return if (max < 0) Error.NegativeIndex else return max;
+        return if (max < 0) Error.NegativeIndex else return @as(usize, @intCast(max));
     }
 
     pub fn update(server: *Server, timestamp: f64) void {
@@ -400,19 +404,19 @@ pub const Server = opaque {
     }
 
     pub fn clientConnected(server: *Server, client_index: usize) bool {
-        return netcode_server_client_connected(server, @intCast(c_int, client_index)) != 0;
+        return netcode_server_client_connected(server, @as(c_int, @intCast(client_index))) != 0;
     }
 
     pub fn clientId(server: *Server, client_index: usize) u64 {
-        return netcode_server_client_id(server, @intCast(c_int, client_index));
+        return netcode_server_client_id(server, @as(c_int, @intCast(client_index)));
     }
 
     pub fn clientAddress(server: *Server, client_index: usize) [*c]struct_netcode_address_t {
-        return netcode_server_client_address(server, @intCast(c_int, client_index));
+        return netcode_server_client_address(server, @as(c_int, @intCast(client_index)));
     }
 
     pub fn disconnectClient(server: *Server, client_index: usize) void {
-        netcode_server_disconnect_client(server, @intCast(c_int, client_index));
+        netcode_server_disconnect_client(server, @as(c_int, @intCast(client_index)));
     }
 
     pub fn disconnectAllClients(server: *Server) void {
@@ -420,54 +424,59 @@ pub const Server = opaque {
     }
 
     pub fn nextPacketSequence(server: *Server, client_index: usize) u64 {
-        netcode_server_next_packet_sequence(server, @intCast(c_int, client_index));
+        return netcode_server_next_packet_sequence(server, @as(c_int, @intCast(client_index)));
     }
 
     pub fn sendPacket(server: *Server, client_index: usize, packet_data: []u8) void {
-        netcode_server_send_packet(server, @intCast(c_int, client_index), packet_data.ptr, @intCast(c_int, packet_data.len));
+        netcode_server_send_packet(server, @as(c_int, @intCast(client_index)), packet_data.ptr, @as(c_int, @intCast(packet_data.len)));
     }
 
     pub fn receivePacket(server: *Server, client_index: usize, packet_sequence: *u64) !?[]u8 {
         var len: c_int = 0;
-        var packet = netcode_server_receive_packet(server, @intCast(c_int, client_index), &len, packet_sequence);
+        var packet = netcode_server_receive_packet(server, @as(c_int, @intCast(client_index)), &len, packet_sequence);
         if (len < 0) return Error.NegativeIndex;
-        return if (packet == null) null else packet[0..@intCast(usize, len)];
+        return if (packet == null) null else packet[0..@as(usize, @intCast(len))];
     }
 
     pub fn freePacket(server: *Server, packet: []u8) void {
-        netcode_server_free_packet(server, packet);
+        netcode_server_free_packet(server, packet.ptr);
     }
 
     pub fn numConnectedClients(server: *Server) !usize {
         const num = netcode_server_num_connected_clients(server);
-        return if (num < 0) Error.NegativeIndex else num;
+        return if (num < 0) Error.NegativeIndex else @as(usize, @intCast(num));
     }
 
     pub fn clientUserData(server: *Server, client_index: usize) ?*anyopaque {
-        return netcode_server_client_user_data(server, @intCast(c_int, client_index));
+        return netcode_server_client_user_data(server, @as(c_int, @intCast(client_index)));
     }
 
     pub fn processPacket(server: *Server, from: Address, packet_data: []u8) void {
-        netcode_server_process_packet(server, &from.toNative(), packet_data.ptr, @intCast(c_int, packet_data.len));
+        var from_native = from.toNative();
+        netcode_server_process_packet(server, &from_native, packet_data.ptr, @as(c_int, @intCast(packet_data.len)));
     }
 
     pub fn connectLoopbackClient(server: *Server, client_index: usize, client_id: u64, user_data: *[USER_DATA_BYTES]u8) void {
-        netcode_server_connect_loopback_client(server, @intCast(c_int, client_index), client_id, user_data);
+        netcode_server_connect_loopback_client(server, @as(c_int, @intCast(client_index)), client_id, user_data);
     }
 
     pub fn disconnectLoopbackClient(server: *Server, client_index: usize) void {
-        netcode_server_disconnect_loopback_client(server, @intCast(c_int, client_index));
+        netcode_server_disconnect_loopback_client(server, @as(c_int, @intCast(client_index)));
     }
 
     pub fn clientLoopback(server: *Server, client_index: usize) bool {
-        return netcode_server_client_loopback(server, @intCast(c_int, client_index)) != 0;
+        return netcode_server_client_loopback(server, @as(c_int, @intCast(client_index))) != 0;
     }
 
     pub fn processLoopbackPacket(server: *Server, client_index: usize, packet_data: []u8, packet_sequence: u64) void {
-        netcode_server_process_loopback_packet(server, @intCast(c_int, client_index), packet_data.ptr, @intCast(c_int, packet_data.len), packet_sequence);
+        netcode_server_process_loopback_packet(server, @as(c_int, @intCast(client_index)), packet_data.ptr, @as(c_int, @intCast(packet_data.len)), packet_sequence);
     }
 
     pub fn getPort(server: *Server) u16 {
         return netcode_server_get_port(server);
     }
 };
+
+test "refAllDeclsRecursive" {
+    std.testing.refAllDeclsRecursive(@This());
+}

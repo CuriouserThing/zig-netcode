@@ -60,15 +60,15 @@ fn encrypt(
     k: [*c]const u8,
 ) c_int {
     _ = nsec;
-    const m_length = @intCast(usize, mlen);
+    const m_length = @as(usize, @intCast(mlen));
     const c_length = m_length + Aead.tag_length;
     var tag = c + m_length;
-    clen_p.* = @intCast(c_longlong, c_length);
+    clen_p.* = @as(c_longlong, @intCast(c_length));
     Aead.encrypt(
         c[0..m_length],
         tag[0..Aead.tag_length],
         m[0..m_length],
-        if (ad == null) &[0]u8{} else ad[0..@intCast(usize, adlen)],
+        if (ad == null) &[0]u8{} else ad[0..@as(usize, @intCast(adlen))],
         npub[0..Aead.nonce_length].*,
         k[0..Aead.key_length].*,
     );
@@ -88,17 +88,17 @@ fn decrypt(
     k: [*c]const u8,
 ) c_int {
     _ = nsec;
-    const c_length = @intCast(usize, clen);
+    const c_length = @as(usize, @intCast(clen));
     const m_length = c_length - Aead.tag_length;
     const tag = c + m_length;
     if (mlen_p != null) {
-        mlen_p.* = @intCast(c_longlong, m_length);
+        mlen_p.* = @as(c_longlong, @intCast(m_length));
     }
     Aead.decrypt(
         m[0..m_length],
         c[0..m_length],
         tag[0..Aead.tag_length].*,
-        if (ad == null) &[0]u8{} else ad[0..@intCast(usize, adlen)],
+        if (ad == null) &[0]u8{} else ad[0..@as(usize, @intCast(adlen))],
         npub[0..Aead.nonce_length].*,
         k[0..Aead.key_length].*,
     ) catch {
@@ -130,7 +130,7 @@ test "message round-trips via ChaCha20Poly1305" {
     if (crypto_aead_xchacha20poly1305_ietf_encrypt(&c, &clen, m0, m0.len, &ad, ad_len, null, &npub, &k) == FAILURE) unreachable;
     if (crypto_aead_xchacha20poly1305_ietf_decrypt(&m1, &m1len, null, &c, clen, &ad, ad_len, &npub, &k) == FAILURE) unreachable;
 
-    try std.testing.expectEqualStrings(m0, m1[0..@intCast(usize, m1len)]);
+    try std.testing.expectEqualStrings(m0, m1[0..@as(usize, @intCast(m1len))]);
 }
 
 test "message round-trips via XChaCha20Poly1305" {
@@ -149,5 +149,5 @@ test "message round-trips via XChaCha20Poly1305" {
     if (crypto_aead_xchacha20poly1305_ietf_encrypt(&c, &clen, m0, m0.len, &ad, ad_len, null, &npub, &k) == FAILURE) unreachable;
     if (crypto_aead_xchacha20poly1305_ietf_decrypt(&m1, &m1len, null, &c, clen, &ad, ad_len, &npub, &k) == FAILURE) unreachable;
 
-    try std.testing.expectEqualStrings(m0, m1[0..@intCast(usize, m1len)]);
+    try std.testing.expectEqualStrings(m0, m1[0..@as(usize, @intCast(m1len))]);
 }
